@@ -1,0 +1,1194 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+
+// Default parameters for a new image's edits
+const DEFAULT_PHOTO_PARAMS = {
+    brightness: 100, // 0-200%
+    contrast: 100,   // 0-200%
+    saturation: 100, // 0-200%
+    sharpness: 0,    // Placeholder for more complex filter, 0-100
+    upscale: 1,      // 1x, 2x, 4x, 8x, 16x (simulated)
+};
+
+// Default logo properties
+const DEFAULT_LOGO_PROPS = {
+    position: 4, // Center (0-8 grid)
+    scale: 0.3,  // 30% default
+    opacity: 0.45,
+};
+
+// Translations object
+const translations = {
+    appTitle: { en: "AUTO IMAGE ID 🟦 A.N 2025-2030", fr: "AUTO IMAGE ID 🟦 A.N 2025-2030" }, // Updated title with blue square emoji
+    communicationCell: { en: "COMMUNICATION OF THE NATIONAL ASSEMBLY OF BURUNDI", fr: "COMMUNICATION DE L'ASSEMBLEE NATIONALE DU BURUNDI" },
+    importImages: { en: "Import Images:", fr: "Importer des Images :" },
+    yourImages: { en: "Your Images:", fr: "Vos Images :" },
+    noImagesUploaded: { en: "No images uploaded yet.", fr: "Aucune image téléchargée pour le moment." },
+    removeSelectedImages: { en: "Remove Selected Images", fr: "Supprimer les Images Sélectionnées" },
+    selectAll: { en: "Select All", fr: "Tout Sélectionner" }, // New translation key
+    deselectAll: { en: "Deselect All", fr: "Tout Désélectionner" }, // New translation key
+    brandingTools: { en: "Branding Tools", fr: "Outils de Marquage" },
+    uploadPngLogo: { en: "Import PNG Logo:", fr: "Importer un Logo PNG :" }, // Updated text
+    logoLoaded: { en: "Logo loaded.", fr: "Logo chargé." },
+    pleaseUploadPng: { en: "Please upload a PNG image for the logo.", fr: "Veuillez télécharger une image PNG pour le logo." },
+    scale: { en: "Scale:", fr: "Échelle :" },
+    opacity: { en: "Opacity:", fr: "Opacité :" },
+    position: { en: "Position:", fr: "Position :" },
+    noteDraggingNotSupported: { en: "(Note: Dragging the logo is not supported in this version.)", fr: "(Note : Le glisser-déposer du logo n'est pas pris en charge dans cette version.)" },
+    livePreview: { en: "Aperçu en Direct", fr: "Aperçu en Direct" },
+    uploadImageToStart: { en: "Upload an image to start editing", fr: "Téléchargez une image pour commencer à éditer" },
+    previous: { en: "Previous", fr: "Précédent" },
+    next: { en: "Next", fr: "Next" },
+    photoEditing: { en: "Photo Editing", fr: "Retouche Photo" },
+    brightness: { en: "Brightness:", fr: "Luminosité :" },
+    contrast: { en: "Contrast:", fr: "Contraste :" },
+    saturation: { en: "Saturation:", fr: "Saturation :" },
+    sharpness: { en: "Netteté :", fr: "Netteté :" },
+    sharpnessNote: { en: "(Note: Full sharpness effect is difficult client-side without advanced pixel manipulation.)", fr: "(Note : L'effet de netteté complet est difficile côté client sans manipulation avancée des pixels.)" },
+    upscaleResolution: { en: "Upscale Resolution:", fr: "Résolution d'Agrandissement :" },
+    original: { en: "Original", fr: "Original" },
+    upscaleNote: { en: "(Note: High-quality upscaling, especially 8x-16x, requires advanced algorithms/backend for best results.)", fr: "(Note : L'agrandissement de haute qualité, en particulier 8x-16x, nécessite des algorithmes/backend avancés pour de meilleurs résultats.)" },
+    batchProcessing: { en: "Batch Processing", fr: "Traitement par Lot" },
+    processAllSelected: { en: "Process All Selected Images", fr: "Traiter Toutes les Images Sélectionnées" },
+    processedImages: { en: "Processed Images:", fr: "Images Traitées :" },
+    downloadAllProcessed: { en: "Download All Processed Images", fr: "Télécharger Toutes les Images Traitées" },
+    selectImagesForBatch: { en: "Select images in the gallery for batch processing.", fr: "Sélectionnez des images dans la galerie pour le traitement par lot." },
+    exportShare: { en: "Export", fr: "Exporter" },
+    downloadFormat: { en: "Download Format", fr: "Format de Téléchargement" },
+    pngLossless: { en: "PNG (Sans Perte)", fr: "PNG (Sans Perte)" },
+    jpegHighQuality: { en: "JPEG (High Quality)", fr: "JPEG (Haute Qualité)" },
+    downloadCurrentImage: { en: "Download Current Image", fr: "Télécharger l'Image Actuelle" },
+    downloadAll: { en: "Download All", fr: "Tout Télécharger" }, // New translation key
+    developedBy: { en: "App Developed by N. Apollinaire | Visual Communication Expert, Author & IT Specialist©2025", fr: "Application Développée par N. Apollinaire | Expert en Communication Visuelle, Auteur & Spécialiste IT©2025" },
+    noImageSelectedExport: { en: "No image selected for export.", fr: "Aucune image sélectionnée pour l'exportation." },
+    invalidDownloadFormat: { en: "Invalid download format selected.", fr: "Format de téléchargement invalide sélectionné." },
+    noProcessedImages: { en: "No processed images to download.", fr: "Aucune image traitée à télécharger." },
+    noImageSelectedShare: { en: "No image selected to share. Please edit an image first.", fr: "Aucune image sélectionnée à partager. Veuillez d'abord modifier une image." },
+    batchProcessingComplete: { en: "Batch processing complete for ", fr: "Traitement par lot terminé pour " },
+    images: { en: " images.", fr: " images." },
+    initiatedDownload: { en: "Initiated download for ", fr: "Téléchargement initié pour " },
+    pleaseSelectImages: { en: "Please select images from the gallery for batch processing.", fr: "Veuillez sélectionner des images dans la galerie pour le traitement par lot." },
+    uploadSuccess: { en: "Image(s) uploaded successfully!", fr: "Image(s) téléchargée(s) avec succès !" },
+    uploadFailed: { en: "Failed to upload image(s).", fr: "Échec du téléchargement de l'image (des images)." },
+    logoUploadSuccess: { en: "Logo uploaded successfully!", fr: "Logo téléchargé avec succès !" },
+    logoUploadFailed: { en: "Failed to upload logo.", fr: "Échec du téléchargement du logo." },
+    imagesRemoved: { en: "Selected images removed.", fr: "Images sélectionnées supprimées." },
+    imageRemoved: { en: "Image removed.", fr: "Image supprimée." },
+    batchProcessFailed: { en: "Batch processing failed.", fr: "Échec du traitement par lot." },
+    downloadSuccess: { en: "Image downloaded successfully!", fr: "Image téléchargée avec succès !" },
+    downloadFailed: { en: "Failed to download image.", fr: "Échec du téléchargement de l'image." },
+    uploadUserProfilePicture: { en: "Upload User Profile Picture:", fr: "Télécharger une Photo de Profil Utilisateur :" },
+    userProfilePictureLoaded: { en: "User profile picture loaded.", fr: "Photo de profil utilisateur chargée." },
+    pleaseUploadValidUserProfileImage: { en: "Please upload a valid image for the user profile picture.", fr: "Veuillez télécharger une image valide pour la photo de profil utilisateur." },
+    welcomeMessage: {
+        en: "Karibu sana! This AUTO IMAGE ID App was created to simplify your work, speed up your task and empower you to work smarter and more professionally in a quick manner. Protect every image you share with ease! Let's serve our nation with patriotism together.",
+        fr: "Karibu sana! Cette application AUTO IMAGE ID a été créée pour simplifier votre travail, accélérer vos tâches et vous permettre de travailler plus intelligemment et plus professionnellement rapidement. Protégez chaque image que vous partagez en toute simplicité ! Servons notre nation avec patriotisme ensemble."
+    },
+    developerQuote: {
+        en: "— Ndayikeze Apollinaire, Developer of the App",
+        fr: "— Ndayikeze Apollinaire, Développeur de l'Application"
+    }
+};
+
+// Main App Component
+const App = () => {
+    // Language state, initialized from localStorage or defaults to English
+    const [lang, setLang] = useState(() => {
+        const savedLang = localStorage.getItem('autoStampLanguage');
+        return savedLang || 'en';
+    });
+
+    // State for managing uploaded images (each now includes its own photoParams)
+    const [uploadedImages, setUploadedImages] = useState(() => {
+        const savedImages = localStorage.getItem('autoStampUploadedImages');
+        // When loading, dataUrl will be missing if it was excluded during save.
+        // We will only load the metadata for the images.
+        return savedImages ? JSON.parse(savedImages) : [];
+    });
+
+    // State for currently selected image index for editing (single selection for live preview)
+    const [selectedImageIndex, setSelectedImageIndex] = useState(() => {
+        const savedIndex = localStorage.getItem('autoStampSelectedImageIndex');
+        // Ensure the saved index is valid for the loaded images
+        const initialImages = localStorage.getItem('autoStampUploadedImages');
+        const parsedImages = initialImages ? JSON.parse(initialImages) : [];
+        return (savedIndex !== null && parsedImages.length > parseInt(savedIndex)) ? parseInt(savedIndex) : null;
+    });
+
+    // State for the uploaded logo image data URL (global, as one logo is typically used)
+    const [logoImage, setLogoImage] = useState(() => {
+        const savedLogo = localStorage.getItem('autoStampLogoImage');
+        return savedLogo ? savedLogo : null;
+    });
+
+    // State for the app's static profile logo (now linked to the main logo upload)
+    const [appProfileLogo, setAppProfileLogo] = useState(() => {
+        const savedAppProfileLogo = localStorage.getItem('autoStampAppProfileLogo');
+        return savedAppProfileLogo ? savedAppProfileLogo : null;
+    });
+
+    // State for the user's static profile picture
+    const [userProfilePicture, setUserProfilePicture] = useState(() => {
+        const savedUserProfilePicture = localStorage.getItem('autoStampUserProfilePicture');
+        return savedUserProfilePicture ? savedUserProfilePicture : null;
+    });
+
+    // Live editing states (reflecting the currently selected image's parameters)
+    const [currentPhotoParams, setCurrentPhotoParams] = useState(DEFAULT_PHOTO_PARAMS);
+    // State for logo properties, initialized from localStorage or defaults
+    const [currentLogoProps, setCurrentLogoProps] = useState(() => {
+        const savedLogoProps = localStorage.getItem('autoStampLogoProps');
+        return savedLogoProps ? JSON.parse(savedLogoProps) : DEFAULT_LOGO_PROPS;
+    });
+
+    // State for selected download format (PNG or JPEG)
+    const [downloadFormat, setDownloadFormat] = useState('png'); // Default to PNG
+
+    // State for processed images after batch processing
+    const [processedImages, setProcessedImages] = useState([]);
+
+    // State for displaying messages to the user
+    const [message, setMessage] = useState('');
+    const [messageType, setMessageType] = useState(''); // 'success' or 'error'
+    const messageTimeoutRef = useRef(null); // Ref to store the timeout ID
+
+    // State for button pulse effect
+    const [pulseButton, setPulseButton] = useState(null); // Stores the ID of the button to pulse
+
+    // Refs for canvas elements
+    const canvasRef = useRef(null); // For live preview
+    const offscreenCanvasRef = useRef(document.createElement('canvas')); // For batch processing
+    const mainImageRef = useRef(new Image()); // For loading the main image into memory
+    const logoImgRef = useRef(new Image()); // For loading the logo image into memory
+
+    // Function to display messages
+    const showMessage = useCallback((text, type) => {
+        if (messageTimeoutRef.current) {
+            clearTimeout(messageTimeoutRef.current);
+        }
+        setMessage(text);
+        setMessageType(type);
+        messageTimeoutRef.current = setTimeout(() => {
+            setMessage('');
+            setMessageType('');
+        }, 2000); // Message disappears after 2 seconds
+    }, []);
+
+    // Effect to handle button pulse animation
+    useEffect(() => {
+        if (pulseButton) {
+            const buttonElement = document.getElementById(pulseButton);
+            if (buttonElement) {
+                buttonElement.classList.add('pulse-animation');
+                const animationEndHandler = () => {
+                    buttonElement.classList.remove('pulse-animation');
+                    buttonElement.removeEventListener('animationend', animationEndHandler);
+                    setPulseButton(null); // Reset pulse state
+                };
+                buttonElement.addEventListener('animationend', animationEndHandler);
+            }
+        }
+    }, [pulseButton]);
+
+    // --- Effects for Auto-Saving and Loading from Local Storage ---
+
+    // Effect to save current language to localStorage
+    useEffect(() => {
+        localStorage.setItem('autoStampLanguage', lang);
+    }, [lang]);
+
+    // Effect to save all uploaded images (with their edits) to localStorage
+    useEffect(() => {
+        // Create a copy of uploadedImages, removing dataUrl and file before saving to localStorage
+        // This prevents QuotaExceededError for large images, but means image data itself won't persist.
+        const savableImages = uploadedImages.map(img => {
+            // eslint-disable-next-line no-unused-vars
+            const { dataUrl, file, ...rest } = img; // Destructure to exclude dataUrl and file
+            return rest;
+        });
+        try {
+            localStorage.setItem('autoStampUploadedImages', JSON.stringify(savableImages));
+        } catch (e) {
+            console.error("Failed to save uploaded images metadata to localStorage:", e);
+            showMessage(translations.uploadFailed[lang], 'error');
+        }
+    }, [uploadedImages, showMessage, lang]);
+
+    // Effect to save selected image index to localStorage
+    useEffect(() => {
+        localStorage.setItem('autoStampSelectedImageIndex', selectedImageIndex !== null ? selectedImageIndex.toString() : '');
+    }, [selectedImageIndex]);
+
+    // Effect to save logo image to localStorage
+    useEffect(() => {
+        localStorage.setItem('autoStampLogoImage', logoImage || '');
+    }, [logoImage]);
+
+    // Effect to save app profile logo to localStorage (now depends on logoImage)
+    useEffect(() => {
+        localStorage.setItem('autoStampAppProfileLogo', appProfileLogo || '');
+    }, [appProfileLogo]);
+
+    // Effect to save user profile picture to localStorage
+    useEffect(() => {
+        localStorage.setItem('autoStampUserProfilePicture', userProfilePicture || '');
+    }, [userProfilePicture]);
+
+    // Effect to save currentLogoProps to localStorage
+    useEffect(() => {
+        localStorage.setItem('autoStampLogoProps', JSON.stringify(currentLogoProps));
+    }, [currentLogoProps]);
+
+    // Effect to load initial photoParams when selectedImageIndex changes
+    useEffect(() => {
+        if (selectedImageIndex !== null && uploadedImages[selectedImageIndex]) {
+            setCurrentPhotoParams(uploadedImages[selectedImageIndex].photoParams);
+        } else {
+            // Reset to defaults if no image is selected
+            setCurrentPhotoParams(DEFAULT_PHOTO_PARAMS);
+        }
+    }, [selectedImageIndex, uploadedImages]);
+
+
+    // --- Core Drawing Logic ---
+
+    // Core drawing function, made more generic for both live preview and offscreen processing
+    const drawImageOnCanvas = useCallback((imgElement, targetCanvas, photoP, logoP, logoImg) => {
+        const ctx = targetCanvas.getContext('2d');
+
+        if (!imgElement.src || !imgElement.complete) {
+            ctx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
+            return;
+        }
+
+        // Apply upscale before drawing to determine final canvas size
+        const upscaleFactor = photoP.upscale || 1;
+        const targetWidth = imgElement.naturalWidth * upscaleFactor;
+        const targetHeight = imgElement.naturalHeight * upscaleFactor;
+
+        // Set canvas dimensions to match the upscaled image dimensions
+        targetCanvas.width = targetWidth;
+        targetCanvas.height = targetHeight;
+
+        // Apply photo filters
+        ctx.filter = `
+            brightness(${photoP.brightness}%)
+            contrast(${photoP.contrast}%)
+            saturate(${photoP.saturation}%)
+        `;
+        // Sharpness is complex. A simple blur/unblur filter isn't true sharpness.
+        // For a real app, this would involve pixel manipulation or a WebGL shader.
+        // For now, we'll just apply the other filters.
+
+        ctx.drawImage(imgElement, 0, 0, targetWidth, targetHeight);
+        ctx.filter = 'none'; // Reset filter for logo
+
+        // Draw logo if available
+        const logo = logoImgRef.current;
+        if (logoImg && logo.src && logo.complete) {
+            const logoScaledWidth = logo.naturalWidth * logoP.scale;
+            const logoScaledHeight = logo.naturalHeight * logoP.scale; // Corrected to use naturalHeight
+
+            // Calculate logo position based on 9-position grid relative to the targetCanvas size
+            let logoX, logoY;
+            const padding = 20 * upscaleFactor; // Scale padding with upscale factor
+
+            switch (logoP.position) {
+                case 0: // Top-Left
+                    logoX = padding;
+                    logoY = padding;
+                    break;
+                case 1: // Top-Center
+                    logoX = (targetCanvas.width - logoScaledWidth) / 2;
+                    logoY = padding;
+                    break;
+                case 2: // Top-Right
+                    logoX = targetCanvas.width - logoScaledWidth - padding;
+                    logoY = padding;
+                    break;
+                case 3: // Middle-Left
+                    logoX = padding;
+                    logoY = (targetCanvas.height - logoScaledHeight) / 2;
+                    break;
+                case 4: // Center (default)
+                    logoX = (targetCanvas.width - logoScaledWidth) / 2;
+                    logoY = (targetCanvas.height - logoScaledHeight) / 2;
+                    break;
+                case 5: // Middle-Right
+                    logoX = targetCanvas.width - logoScaledWidth - padding;
+                    logoY = (targetCanvas.height - logoScaledHeight) / 2;
+                    break;
+                case 6: // Bottom-Left
+                    logoX = padding;
+                    logoY = targetCanvas.height - logoScaledHeight - padding;
+                    break;
+                case 7: // Bottom-Center
+                    logoX = (targetCanvas.width - logoScaledWidth) / 2;
+                    logoY = targetCanvas.height - logoScaledHeight - padding;
+                    break;
+                case 8: // Bottom-Right
+                    logoX = targetCanvas.width - logoScaledWidth - padding;
+                    logoY = targetCanvas.height - logoScaledHeight - padding;
+                    break;
+                default:
+                    logoX = (targetCanvas.width - logoScaledWidth) / 2;
+                    logoY = (targetCanvas.height - logoScaledHeight) / 2;
+            }
+
+            ctx.globalAlpha = logoP.opacity;
+            ctx.drawImage(logo, logoX, logoY, logoScaledWidth, logoScaledHeight);
+            ctx.globalAlpha = 1.0; // Reset alpha
+        }
+    }, []); // Dependencies are explicitly passed as arguments now
+
+    // Effect for live preview drawing (triggered by currentPhotoParams/currentLogoProps changes)
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        const img = mainImageRef.current;
+        if (canvas && img.src && img.complete) {
+            drawImageOnCanvas(img, canvas, currentPhotoParams, currentLogoProps, logoImage);
+        } else if (canvas) {
+            // Clear canvas if no image selected
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+    }, [currentPhotoParams, currentLogoProps, logoImage, drawImageOnCanvas]);
+
+
+    // Load main image when selectedImageIndex changes
+    useEffect(() => {
+        if (selectedImageIndex !== null && uploadedImages[selectedImageIndex]) {
+            // If dataUrl is not present (e.g., loaded from localStorage), image won't display without re-upload.
+            // This is a limitation due to localStorage quota.
+            mainImageRef.current.onload = () => {
+                // Redraw canvas with new image (using the current params loaded from the image)
+                drawImageOnCanvas(mainImageRef.current, canvasRef.current, currentPhotoParams, currentLogoProps, logoImage);
+            };
+            // Only set src if dataUrl exists (i.e., image was just uploaded in current session)
+            mainImageRef.current.src = uploadedImages[selectedImageIndex].dataUrl || '';
+        } else {
+            // Clear canvas if no image selected
+            const canvas = canvasRef.current;
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                mainImageRef.current.src = '';
+            }
+        }
+    }, [selectedImageIndex, uploadedImages, drawImageOnCanvas, currentPhotoParams, currentLogoProps, logoImage]);
+
+    // Load logo image when logoImage state changes
+    useEffect(() => {
+        if (logoImage) {
+            logoImgRef.current.onload = () => {
+                // Redraw live preview with new logo
+                if (selectedImageIndex !== null) {
+                    drawImageOnCanvas(mainImageRef.current, canvasRef.current, currentPhotoParams, currentLogoProps, logoImage);
+                }
+            };
+            logoImgRef.current.src = logoImage;
+        } else {
+            logoImgRef.current.src = ''; // Clear logo
+            if (selectedImageIndex !== null) {
+                drawImageOnCanvas(mainImageRef.current, canvasRef.current, currentPhotoParams, currentLogoProps, null); // Pass null for logoImage if cleared
+            }
+        }
+    }, [logoImage, selectedImageIndex, drawImageOnCanvas, currentPhotoParams, currentLogoProps]);
+
+
+    // --- Event Handlers ---
+
+    // Generic handler for button clicks to trigger pulse
+    const handleButtonClick = (action, buttonId, ...args) => {
+        setPulseButton(buttonId);
+        // Call the actual action handler after setting the pulse
+        if (typeof action === 'function') {
+            action(...args);
+        }
+    };
+
+    // Handle image file selection for gallery
+    const handleImageUpload = (event) => {
+        const files = Array.from(event.target.files);
+        if (files.length === 0) {
+            showMessage(translations.uploadFailed[lang], 'error');
+            return;
+        }
+
+        let filesProcessed = 0;
+        const newImages = [];
+        files.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                newImages.push({
+                    id: crypto.randomUUID(), // Unique ID for keying and selection
+                    // We store dataUrl here in state for current session use (thumbnails, preview, batch)
+                    // but it's excluded from localStorage saving to avoid quota issues.
+                    dataUrl: e.target.result,
+                    name: file.name,
+                    selected: false, // Default to not selected for batch processing
+                    photoParams: { ...DEFAULT_PHOTO_PARAMS }, // Initialize with default params
+                });
+                filesProcessed++;
+                if (filesProcessed === files.length) {
+                    setUploadedImages(prev => {
+                        const updatedImages = [...prev, ...newImages];
+                        // Automatically select the first newly uploaded image if none was selected before
+                        if (newImages.length > 0 && selectedImageIndex === null) {
+                            setSelectedImageIndex(prev.length); // Index of the first new image
+                        }
+                        showMessage(translations.uploadSuccess[lang], 'success');
+                        return updatedImages;
+                    });
+                }
+            };
+            reader.onerror = () => {
+                filesProcessed++;
+                showMessage(translations.uploadFailed[lang], 'error');
+                if (filesProcessed === files.length && newImages.length > 0) {
+                    setUploadedImages(prev => [...prev, ...newImages]);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    };
+
+    // Toggle multi-selection for an image in the gallery
+    const toggleImageSelection = (index) => {
+        setUploadedImages(prevImages =>
+            prevImages.map((img, i) =>
+                i === index ? { ...img, selected: !img.selected } : img
+            )
+        );
+    };
+
+    // New: Select/Deselect all images
+    const handleSelectAll = () => {
+        const allSelected = uploadedImages.every(img => img.selected);
+        setUploadedImages(prevImages =>
+            prevImages.map(img => ({ ...img, selected: !allSelected }))
+        );
+    };
+
+    // Remove selected images from the gallery
+    const handleRemoveSelectedImages = () => {
+        const initialSelectedCount = uploadedImages.filter(img => img.selected).length;
+        if (initialSelectedCount === 0) return; // No images to remove
+
+        const imagesToKeep = uploadedImages.filter(img => !img.selected);
+        setUploadedImages(imagesToKeep);
+        setProcessedImages([]); // Clear processed images if originals are removed
+
+        // Adjust selectedImageIndex if the current one was removed or if it's out of bounds
+        if (selectedImageIndex !== null) {
+            const removedIndex = uploadedImages[selectedImageIndex]?.selected;
+            if (removedIndex || selectedImageIndex >= imagesToKeep.length) {
+                setSelectedImageIndex(imagesToKeep.length > 0 ? 0 : null);
+            }
+        }
+        showMessage(translations.imagesRemoved[lang], 'success');
+    };
+
+    // Handle removing a single image by its ID
+    const handleRemoveImage = (idToRemove) => {
+        setUploadedImages(prevImages => {
+            const updatedImages = prevImages.filter(img => img.id !== idToRemove);
+
+            // If the currently selected image is removed, adjust selectedImageIndex
+            if (selectedImageIndex !== null && prevImages[selectedImageIndex]?.id === idToRemove) {
+                if (updatedImages.length > 0) {
+                    setSelectedImageIndex(0); // Select the first image if available
+                } else {
+                    setSelectedImageIndex(null); // No images left
+                }
+            } else if (selectedImageIndex !== null) {
+                // If an image *before* the selected one was removed, adjust the index
+                const newIndex = updatedImages.findIndex(img => img.id === prevImages[selectedImageIndex]?.id);
+                setSelectedImageIndex(newIndex !== -1 ? newIndex : null);
+            }
+
+            setProcessedImages([]); // Clear processed images as originals changed
+            showMessage(translations.imageRemoved[lang], 'success');
+            return updatedImages;
+        });
+    };
+
+    // Handle logo file upload (for branding logo and now also for app profile logo)
+    const handleLogoUpload = (event) => {
+        const file = event.target.files[0];
+        if (file && file.type.startsWith('image/png')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setLogoImage(e.target.result);
+                setAppProfileLogo(e.target.result); // Set app profile logo from the same upload
+                // Removed showMessage for logo upload as per request
+            };
+            reader.onerror = () => {
+                // Removed showMessage for logo upload failed as per request
+            };
+            reader.readAsDataURL(file);
+        } else {
+            // Removed showMessage for invalid logo type as per request
+            setLogoImage(null);
+            setAppProfileLogo(null); // Clear app profile logo if invalid file
+        }
+    };
+
+    // Handle user profile picture upload
+    const handleUserProfilePictureUpload = (event) => {
+        const file = event.target.files[0];
+        if (file && file.type.startsWith('image/')) { // Allow any image type for user profile picture
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setUserProfilePicture(e.target.result);
+                showMessage(translations.userProfilePictureLoaded[lang], 'success');
+            };
+            reader.onerror = () => {
+                showMessage(translations.pleaseUploadValidUserProfileImage[lang], 'error');
+            };
+            reader.readAsDataURL(file);
+        } else {
+            showMessage(translations.pleaseUploadValidUserProfileImage[lang], 'error');
+            setUserProfilePicture(null);
+        }
+    };
+
+    // Handle photo parameter changes (updates current image's params and global state)
+    const handlePhotoParamChange = (param, value) => {
+        // Update the photoParams for the currently selected image in the uploadedImages array
+        setUploadedImages(prevImages => {
+            if (selectedImageIndex === null) return prevImages;
+            const updatedImages = [...prevImages];
+            updatedImages[selectedImageIndex] = {
+                ...updatedImages[selectedImageIndex],
+                photoParams: {
+                    ...updatedImages[selectedImageIndex].photoParams,
+                    [param]: value,
+                },
+            };
+            return updatedImages;
+        });
+        // Also update the top-level state to trigger immediate preview redraw
+        setCurrentPhotoParams(prev => ({ ...prev, [param]: value }));
+    };
+
+    // Handle logo property changes (updates global logo properties)
+    const handleLogoPropChange = (prop, value) => {
+        // Only update the top-level state for currentLogoProps
+        setCurrentLogoProps(prev => ({ ...prev, [prop]: value }));
+    };
+
+
+    // Handle batch processing
+    const handleBatchProcess = async () => {
+        const selectedForBatch = uploadedImages.filter(img => img.selected);
+        if (selectedForBatch.length === 0) {
+            showMessage(translations.pleaseSelectImages[lang], 'error');
+            return;
+        }
+
+        const newProcessedImages = [];
+        const offscreenCanvas = offscreenCanvasRef.current;
+        const tempImage = new Image(); // Use a temporary image element for drawing
+
+        try {
+            for (const img of selectedForBatch) {
+                // Ensure the image has dataUrl for processing (it should if it's from current session)
+                if (!img.dataUrl) {
+                    showMessage(`Image "${img.name}" cannot be processed as its data is not available. Please re-import it.`, 'error');
+                    continue;
+                }
+                await new Promise((resolve, reject) => {
+                    tempImage.onload = () => {
+                        // Use the specific photoParams of THIS image, but the GLOBAL currentLogoProps for batch processing
+                        drawImageOnCanvas(tempImage, offscreenCanvas, img.photoParams, currentLogoProps, logoImage);
+                        const processedDataUrl = offscreenCanvas.toDataURL('image/png'); // Get data URL
+                        newProcessedImages.push({
+                            id: crypto.randomUUID(),
+                            originalName: img.name,
+                            dataUrl: processedDataUrl,
+                        });
+                        resolve();
+                    };
+                    tempImage.onerror = () => {
+                        reject(`Failed to load image for batch processing: ${img.name}`);
+                    };
+                    tempImage.src = img.dataUrl;
+                });
+            }
+            setProcessedImages(newProcessedImages);
+            showMessage(`${translations.batchProcessingComplete[lang]}${newProcessedImages.length}${translations.images[lang]}`, 'success');
+        } catch (error) {
+            console.error("Batch processing error:", error);
+            showMessage(translations.batchProcessFailed[lang], 'error');
+        }
+    };
+
+    // Handle export/download of single image
+    const handleExport = () => {
+        if (!canvasRef.current || selectedImageIndex === null) {
+            showMessage(translations.noImageSelectedExport[lang], 'error');
+            return;
+        }
+
+        const canvas = canvasRef.current;
+        const imgName = uploadedImages[selectedImageIndex].name.split('.')[0];
+        const link = document.createElement('a');
+
+        let dataUrl;
+        let filenameExtension;
+
+        try {
+            if (downloadFormat === 'png') {
+                dataUrl = canvas.toDataURL('image/png');
+                filenameExtension = 'png';
+            } else if (downloadFormat === 'jpeg') {
+                // High quality JPEG (0.95)
+                dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+                filenameExtension = 'jpeg';
+            } else {
+                showMessage(translations.invalidDownloadFormat[lang], 'error');
+                return;
+            }
+
+            link.download = `${imgName}_edited.${filenameExtension}`;
+            link.href = dataUrl;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showMessage(translations.downloadSuccess[lang], 'success');
+        } catch (error) {
+            console.error("Download error:", error);
+            showMessage(translations.downloadFailed[lang], 'error');
+        }
+    };
+
+    // Handle batch download of all processed images
+    const handleBatchDownload = () => {
+        if (processedImages.length === 0) {
+            showMessage(translations.noProcessedImages[lang], 'error');
+            return;
+        }
+
+        try {
+            processedImages.forEach((img, index) => {
+                const link = document.createElement('a');
+                // For batch download, we'll stick to PNG for simplicity and quality consistency
+                link.download = `${img.originalName.split('.')[0]}_branded_${index + 1}.png`;
+                link.href = img.dataUrl;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+            showMessage(`${translations.initiatedDownload[lang]}${processedImages.length}${translations.images[lang]}`, 'success');
+        } catch (error) {
+            console.error("Batch download error:", error);
+            showMessage(translations.downloadFailed[lang], 'error');
+        }
+    };
+
+    // Handle navigation to the previous image
+    const handlePreviousImage = () => {
+        if (selectedImageIndex > 0) {
+            setSelectedImageIndex(selectedImageIndex - 1);
+        }
+    };
+
+    // Handle navigation to the next image
+    const handleNextImage = () => {
+        if (selectedImageIndex < uploadedImages.length - 1) {
+            setSelectedImageIndex(uploadedImages.length > 0 ? selectedImageIndex + 1 : null); // Ensure index is valid
+        }
+    };
+
+
+    // Determine if all images are currently selected
+    const areAllImagesSelected = uploadedImages.length > 0 && uploadedImages.every(img => img.selected);
+
+    // Render the UI
+    return (
+        <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-100 font-inter">
+            {/* Custom CSS for pulse animation */}
+            <style>
+                {`
+                @keyframes pulse {
+                    0% {
+                        transform: scale(1);
+                        box-shadow: 0 0 0 0 rgba(15, 157, 88, 0.7);
+                    }
+                    70% {
+                        transform: scale(1.05);
+                        box-shadow: 0 0 0 10px rgba(15, 157, 88, 0);
+                    }
+                    100% {
+                        transform: scale(1);
+                        box-shadow: 0 0 0 0 rgba(15, 157, 88, 0);
+                    }
+                }
+
+                .pulse-animation {
+                    animation: pulse 0.6s ease-in-out;
+                }
+                `}
+            </style>
+
+            {/* Header */}
+            <header className="w-full max-w-5xl bg-[#0F9D58] text-white p-6 rounded-t-lg shadow-md flex justify-between items-center">
+                <h2 className="text-4xl font-bold text-center flex-grow">{translations.appTitle[lang]}</h2>
+                <div className="flex space-x-2">
+                    <button
+                        id="lang-en-btn"
+                        onClick={() => handleButtonClick(() => setLang('en'), 'lang-en-btn')}
+                        className={`py-2 px-4 rounded-md font-semibold border-2 border-white
+                                    ${lang === 'en' ? 'bg-blue-600 text-white' : 'bg-blue-400 text-white hover:bg-blue-500'}
+                                    transition-colors duration-200`}
+                    >
+                        English
+                    </button>
+                    <button
+                        id="lang-fr-btn"
+                        onClick={() => handleButtonClick(() => setLang('fr'), 'lang-fr-btn')}
+                        className={`py-2 px-4 rounded-md font-semibold border-2 border-white
+                                    ${lang === 'fr' ? 'bg-red-600 text-white' : 'bg-red-400 text-white hover:bg-red-500'}
+                                    transition-colors duration-200`}
+                    >
+                        Français
+                    </button>
+                </div>
+            </header>
+
+            <main className="flex flex-col lg:flex-row w-full max-w-5xl bg-white rounded-b-lg shadow-xl overflow-hidden">
+                {/* Left Panel: Gallery & Controls */}
+                <div className="w-full lg:w-1/3 p-6 border-r border-gray-200 bg-gray-50 flex flex-col">
+
+                    {/* Communication Cell Title with App Profile Logo */}
+                    <div className="bg-red-500 text-white p-2 rounded-md mb-4 flex items-center justify-center">
+                        {appProfileLogo && (
+                            <img
+                                src={appProfileLogo}
+                                alt="App Icon"
+                                className="w-10 h-10 object-contain mr-2 rounded-full"
+                            />
+                        )}
+                        <h1 className="text-xl sm:text-2xl font-bold text-center flex-grow">{translations.communicationCell[lang]}</h1>
+                    </div>
+
+                    {/* Container for New Blue Section and User Profile Picture */}
+                    <div className="flex items-start justify-between mb-4">
+                        {/* New Blue Section with Quote */}
+                        <div className="bg-blue-800 text-white p-3 rounded-md shadow-md flex-1 mr-4">
+                            <p className="italic text-sm mb-1">
+                                {translations.welcomeMessage[lang].split('\n').map((line, index) => (
+                                    <React.Fragment key={index}>
+                                        {line}
+                                        {index < translations.welcomeMessage[lang].split('\n').length - 1 && <br />}
+                                    </React.Fragment>
+                                ))}
+                            </p>
+                            <p className="text-sm font-bold">
+                                {translations.developerQuote[lang]}
+                            </p>
+                        </div>
+
+                        {/* User Profile Picture Upload and Display */}
+                        <div className="flex-shrink-0">
+                            <label htmlFor="userProfilePictureUpload" className="cursor-pointer">
+                                <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border-2 border-gray-300 hover:border-blue-500 transition-colors duration-200">
+                                    {userProfilePicture ? (
+                                        <img src={userProfilePicture} alt="User Profile" className="w-full h-full object-cover rounded-full" />
+                                    ) : (
+                                        <span className="text-gray-500 text-xs text-center p-1">{translations.uploadUserProfilePicture[lang].split(':')[0]}</span>
+                                    )}
+                                </div>
+                            </label>
+                            <input
+                                id="userProfilePictureUpload"
+                                type="file"
+                                accept="image/*"
+                                onChange={handleUserProfilePictureUpload}
+                                className="hidden" // Hide the default file input
+                            />
+                        </div>
+                    </div>
+
+                    {/* Message Display Area */}
+                    <div className={`p-3 mb-4 rounded-md text-center font-semibold transition-opacity duration-500
+                                    ${messageType === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}
+                                    ${message ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                        {message}
+                    </div>
+
+                    {/* Image Import */}
+                    <div className="mb-6">
+                        <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">{translations.importImages[lang]}</h1> {/* Changed to h1 and bold */}
+                        <input
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            className="block w-full text-sm text-gray-500
+                                       file:mr-4 file:py-2 file:px-4
+                                       file:rounded-md file:border-0
+                                       file:text-sm file:font-semibold
+                                       file:bg-blue-50 file:text-blue-700
+                                       hover:file:bg-blue-100 cursor-pointer"
+                        />
+                    </div>
+
+                    {/* Image Thumbnails (5-column grid) */}
+                    <div className="mb-6 flex-grow overflow-y-auto pr-2">
+                        <h4 className="text-lg font-medium text-gray-700 mb-3">{translations.yourImages[lang]}</h4>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                            {uploadedImages.map((img, index) => (
+                                <div
+                                    key={img.id} // Use unique ID for key
+                                    className={`relative w-full h-20 rounded-md overflow-hidden cursor-pointer border-2
+                                                ${selectedImageIndex === index ? 'border-red-500 ring-2 ring-red-500' : 'border-gray-300'}
+                                                ${img.selected ? 'bg-green-100' : ''}
+                                                hover:border-blue-500 transition-all duration-200 ease-in-out`}
+                                >
+                                    {/* Display image only if dataUrl is available (i.e., in current session) */}
+                                    {img.dataUrl ? (
+                                        <img
+                                            src={img.dataUrl}
+                                            alt={img.name}
+                                            className="w-full h-full object-cover"
+                                            onClick={() => setSelectedImageIndex(index)} // Single click for live preview selection
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-500 text-xs text-center p-1"
+                                             onClick={() => setSelectedImageIndex(index)}>
+                                            {img.name} <br/> (Re-import to view)
+                                        </div>
+                                    )}
+
+                                    {/* Multi-selection checkbox/indicator */}
+                                    <div
+                                        className={`absolute top-1 right-1 cursor-pointer rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold border-2
+                                                    ${img.selected ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-gray-400 text-gray-700'}`}
+                                        onClick={() => toggleImageSelection(index)} // Click to toggle multi-selection
+                                    >
+                                        {img.selected ? '✓' : ''}
+                                    </div>
+                                    {/* Red cross for individual image removal */}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation(); // Prevent selecting the image when clicking the cross
+                                            handleRemoveImage(img.id);
+                                        }}
+                                        className="absolute top-1 left-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold hover:bg-red-700 transition-colors"
+                                        title="Remove image"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            ))}
+                            {uploadedImages.length === 0 && (
+                                <p className="text-gray-500 text-sm col-span-5 text-center">{translations.noImagesUploaded[lang]}</p>
+                            )}
+                        </div>
+                        {uploadedImages.length > 0 && (
+                            <div className="flex flex-col space-y-2 mt-4">
+                                <button
+                                    id="select-all-btn"
+                                    onClick={() => handleButtonClick(handleSelectAll, 'select-all-btn')}
+                                    className="w-full bg-blue-500 text-white py-2 px-4 rounded-md font-semibold hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                                >
+                                    {areAllImagesSelected ? translations.deselectAll[lang] : translations.selectAll[lang]}
+                                </button>
+                                <button
+                                    id="remove-selected-btn"
+                                    onClick={() => handleButtonClick(handleRemoveSelectedImages, 'remove-selected-btn')}
+                                    className="w-full bg-red-500 text-white py-2 px-4 rounded-md font-semibold hover:bg-red-600 disabled:opacity-50 transition-colors"
+                                    disabled={uploadedImages.filter(img => img.selected).length === 0}
+                                >
+                                    {translations.removeSelectedImages[lang]} ({uploadedImages.filter(img => img.selected).length})
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Branding Tools */}
+                    <div className="mb-6 border-t pt-4 border-gray-200">
+                        <h3 className="text-2xl font-semibold text-gray-800 mb-4">{translations.brandingTools[lang]}</h3>
+                        <div className="mb-4">
+                            <h1 className="text-xl sm:text-2xl font-bold text-gray-700 mb-2">{translations.uploadPngLogo[lang]}</h1> {/* Changed to h1 and bold */}
+                            <input
+                                type="file"
+                                accept="image/png"
+                                onChange={handleLogoUpload}
+                                className="block w-full text-sm text-gray-500
+                                           file:mr-4 file:py-2 file:px-4
+                                           file:rounded-md file:border-0
+                                           file:text-sm file:font-semibold
+                                           file:bg-blue-50 file:text-blue-700
+                                           hover:file:bg-blue-100 cursor-pointer"
+                            />
+                            {logoImage && (
+                                <div className="mt-3 flex items-center space-x-2">
+                                    <img src={logoImage} alt="Logo Preview" className="w-16 h-16 object-contain rounded-md border border-gray-300" />
+                                    <span className="text-gray-600 text-sm">{translations.logoLoaded[lang]}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Logo Controls */}
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">{translations.scale[lang]} {Math.round(currentLogoProps.scale * 100)}%</label>
+                                <input
+                                    type="range"
+                                    min="0.1" max="3" step="0.01"
+                                    value={currentLogoProps.scale}
+                                    onChange={(e) => handleLogoPropChange('scale', parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">{translations.opacity[lang]} {Math.round(currentLogoProps.opacity * 100)}%</label>
+                                <input
+                                    type="range"
+                                    min="0" max="1" step="0.01"
+                                    value={currentLogoProps.opacity}
+                                    onChange={(e) => handleLogoPropChange('opacity', parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">{translations.position[lang]}</label>
+                                <div className="grid grid-cols-3 gap-1">
+                                    {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(pos => (
+                                        <button
+                                            key={pos}
+                                            onClick={() => handleLogoPropChange('position', pos)}
+                                            className={`p-2 rounded-md text-sm font-semibold
+                                                        ${currentLogoProps.position === pos ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}
+                                                        transition-colors duration-200`}
+                                        >
+                                            {pos === 0 && 'TL'} {pos === 1 && 'TC'} {pos === 2 && 'TR'}
+                                            {pos === 3 && 'ML'} {pos === 4 && 'C'} {pos === 5 && 'MR'}
+                                            {pos === 6 && 'BL'} {pos === 7 && 'BC'} {pos === 8 && 'BR'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                                {translations.noteDraggingNotSupported[lang]}
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
+
+                {/* Right Panel: Live Preview & Export */}
+                <div className="w-full lg:w-2/3 p-6 flex flex-col items-center justify-center bg-gray-100">
+                    {/* Live Preview Title in Green Container */}
+                    <div className="p-4 rounded-md bg-[#0F9D58] text-white mb-4 w-full max-w-lg">
+                        <h3 className="text-2xl font-semibold text-center">{translations.livePreview[lang]}</h3>
+                    </div>
+                    <div className="w-full max-w-lg bg-gray-200 rounded-lg shadow-inner flex items-center justify-center overflow-hidden mb-4"
+                         style={{
+                             // Dynamic height based on image aspect ratio, max-height to prevent excessive size
+                             height: selectedImageIndex !== null && mainImageRef.current.naturalWidth && mainImageRef.current.naturalHeight
+                                 ? `${(mainImageRef.current.naturalHeight / mainImageRef.current.naturalWidth) * 100}%`
+                                 : '400px', // Default height if no image
+                             paddingBottom: selectedImageIndex !== null && mainImageRef.current.naturalWidth && mainImageRef.current.naturalHeight
+                                 ? `${(mainImageRef.current.naturalHeight / mainImageRef.current.naturalWidth) * 100}%`
+                                 : '0', // For aspect ratio trick
+                             position: 'relative',
+                             maxHeight: '500px', // Cap max height for very tall images
+                             maxWidth: '100%', // Ensure it's responsive
+                         }}
+                    >
+                        <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full object-contain"></canvas>
+                        {!uploadedImages[selectedImageIndex] && (
+                            <p className="absolute text-gray-500 text-lg">{translations.uploadImageToStart[lang]}</p>
+                        )}
+                        {selectedImageIndex !== null && (
+                            <button
+                                id="remove-current-image-btn"
+                                onClick={() => handleButtonClick(handleRemoveImage, 'remove-current-image-btn', uploadedImages[selectedImageIndex].id)}
+                                className="absolute top-2 right-2 bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold hover:bg-red-700 transition-colors z-10"
+                                title="Remove current image"
+                            >
+                                ✕
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Navigation Buttons */}
+                    <div className="flex justify-between w-full max-w-lg mb-6 space-x-4">
+                        <button
+                            id="prev-img-btn"
+                            onClick={() => handleButtonClick(handlePreviousImage, 'prev-img-btn')}
+                            disabled={selectedImageIndex === null || selectedImageIndex === 0}
+                            className="flex-1 bg-gray-300 text-gray-800 py-2 px-4 rounded-md font-semibold hover:bg-gray-400 disabled:opacity-50 transition-colors"
+                        >
+                            {translations.previous[lang]}
+                        </button>
+                        <button
+                            id="next-img-btn"
+                            onClick={() => handleButtonClick(handleNextImage, 'next-img-btn')}
+                            disabled={selectedImageIndex === null || selectedImageIndex === uploadedImages.length - 1}
+                            className="flex-1 bg-gray-300 text-gray-800 py-2 px-4 rounded-md font-semibold hover:bg-gray-400 disabled:opacity-50 transition-colors"
+                        >
+                            {translations.next[lang]}
+                        </button>
+                    </div>
+
+
+                    {/* Photo Editing */}
+                    <div className="w-full mb-6">
+                        <div className="p-4 rounded-md bg-[#000080] text-white mb-4"> {/* Navy blue background for title */}
+                            <h3 className="text-2xl font-semibold">{translations.photoEditing[lang]}</h3>
+                        </div>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">{translations.brightness[lang]} {Math.round(currentPhotoParams.brightness)}%</label>
+                                <input
+                                    type="range"
+                                    min="0" max="200" step="1"
+                                    value={currentPhotoParams.brightness}
+                                    onChange={(e) => handlePhotoParamChange('brightness', parseInt(e.target.value))}
+                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">{translations.contrast[lang]} {Math.round(currentPhotoParams.contrast)}%</label>
+                                <input
+                                    type="range"
+                                    min="0" max="200" step="1"
+                                    value={currentPhotoParams.contrast}
+                                    onChange={(e) => handlePhotoParamChange('contrast', parseInt(e.target.value))}
+                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">{translations.saturation[lang]} {Math.round(currentPhotoParams.saturation)}%</label>
+                                <input
+                                    type="range"
+                                    min="0" max="200" step="1"
+                                    value={currentPhotoParams.saturation}
+                                    onChange={(e) => handlePhotoParamChange('saturation', parseInt(e.target.value))}
+                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
+                                />
+                            </div>
+                            {/* Sharpness is complex client-side, showing a slider but actual effect is limited */}
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">{translations.sharpness[lang]} {Math.round(currentPhotoParams.sharpness)}%</label>
+                                <input
+                                    type="range"
+                                    min="0" max="100" step="1"
+                                    value={currentPhotoParams.sharpness}
+                                    onChange={(e) => handlePhotoParamChange('sharpness', parseInt(e.target.value))}
+                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    {translations.sharpnessNote[lang]}
+                                </p>
+                            </div>
+                            {/* Upscale Resolution - simulated/basic */}
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">{translations.upscaleResolution[lang]}</label>
+                                <select
+                                    value={currentPhotoParams.upscale}
+                                    onChange={(e) => handlePhotoParamChange('upscale', parseInt(e.target.value))}
+                                    className="w-full p-2 border border-gray-300 rounded-md bg-white text-gray-700"
+                                >
+                                    <option value={1}>1x ({translations.original[lang]})</option>
+                                    <option value={2}>2x</option>
+                                    <option value={4}>4x</option>
+                                    <option value={8}>8x</option>
+                                    <option value={16}>16x</option>
+                                </select>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    {translations.upscaleNote[lang]}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Batch Processing */}
+                    <div className="w-full mb-6">
+                        <div className="p-4 rounded-md bg-[#000080] text-white mb-4"> {/* Navy blue background for title */}
+                            <h3 className="text-2xl font-semibold">{translations.batchProcessing[lang]}</h3>
+                        </div>
+                        <button
+                            id="batch-process-btn"
+                            onClick={() => handleButtonClick(handleBatchProcess, 'batch-process-btn')}
+                            disabled={uploadedImages.filter(img => img.selected).length === 0}
+                            className="w-full bg-blue-600 text-white py-3 px-6 rounded-md font-semibold text-lg hover:bg-blue-700 disabled:opacity-50 transition-all duration-300 ease-in-out transform hover:scale-105"
+                        >
+                            {translations.processAllSelected[lang]} ({uploadedImages.filter(img => img.selected).length})
+                        </button>
+
+                        {/* Processed Images Thumbnails */}
+                        {processedImages.length > 0 && (
+                            <div className="mt-6">
+                                <h4 className="text-lg font-medium text-gray-700 mb-3">{translations.processedImages[lang]}</h4>
+                                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 max-h-48 overflow-y-auto pr-2">
+                                    {processedImages.map((img) => (
+                                        <div
+                                            key={img.id}
+                                            className="relative w-full h-20 rounded-md overflow-hidden border-2 border-green-500 ring-2 ring-green-500"
+                                        >
+                                            <img src={img.dataUrl} alt={img.originalName} className="w-full h-full object-cover" />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {uploadedImages.length > 0 && uploadedImages.filter(img => img.selected).length === 0 && (
+                            <p className="text-gray-500 text-sm mt-4 text-center">{translations.selectImagesForBatch[lang]}</p>
+                        )}
+                    </div>
+
+                    {/* Export Section */}
+                    <div className="w-full">
+                        <div className="p-4 rounded-md bg-[#000080] text-white mb-4"> {/* Navy blue background for title */}
+                            <h3 className="text-2xl font-semibold">{translations.exportShare[lang]}</h3>
+                        </div>
+                        <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 items-center">
+                            {/* Download Format Selector */}
+                            <div className="flex-1 w-full sm:w-auto">
+                                <label htmlFor="downloadFormat" className="sr-only">{translations.downloadFormat[lang]}</label>
+                                <select
+                                    id="download-format-select"
+                                    value={downloadFormat}
+                                    onChange={(e) => setDownloadFormat(e.target.value)}
+                                    className="w-full p-2 border border-gray-300 rounded-md bg-white text-gray-700"
+                                >
+                                    <option value="png">{translations.pngLossless[lang]}</option>
+                                    <option value="jpeg">{translations.jpegHighQuality[lang]}</option>
+                                </select>
+                            </div>
+                            <button
+                                id="download-current-btn"
+                                onClick={() => handleButtonClick(handleExport, 'download-current-btn')}
+                                disabled={selectedImageIndex === null}
+                                className="flex-1 bg-green-600 text-white py-3 px-6 rounded-md font-semibold text-lg hover:bg-green-700 disabled:opacity-50 transition-all duration-300 ease-in-out transform hover:scale-105"
+                            >
+                                {translations.downloadCurrentImage[lang]}
+                            </button>
+                            {/* "Download All" button for processed images */}
+                            <button
+                                id="download-all-btn"
+                                onClick={() => handleButtonClick(handleBatchDownload, 'download-all-btn')}
+                                disabled={processedImages.length === 0}
+                                className="flex-1 bg-red-600 text-white py-3 px-6 rounded-md font-semibold text-lg hover:bg-red-700 disabled:opacity-50 transition-all duration-300 ease-in-out transform hover:scale-105"
+                            >
+                                {translations.downloadAll[lang]} ({processedImages.length})
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            {/* Bottom Rectangle (Navy) and Footer */}
+            <footer className="w-full max-w-5xl bg-blue-900 text-white p-4 rounded-b-lg mt-4 shadow-md">
+                <p className="text-center text-sm">{translations.developedBy[lang]}</p>
+            </footer>
+        </div>
+    );
+};
+
+export default App;
